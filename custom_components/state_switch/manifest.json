@@ -1,0 +1,9 @@
+{
+  "domain": "state_switch",
+  "name": "State Switch",
+  "documentation": "https://github.com/oukene/state_switch",
+  "requirements": [],
+  "dependencies": [],
+  "codeowners": ["@oukene"],
+  "version": "1.0.0"
+}
