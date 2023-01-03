@@ -37,10 +37,7 @@ from homeassistant.components.template.template_entity import (
     rewrite_common_legacy_to_modern_conf,
 )
 
-_VALID_STATES = [STATE_ON, STATE_OFF, "true", "false"]
-
-ON_ACTION = "turn_on"
-OFF_ACTION = "turn_off"
+from homeassistant.components.template.switch import SwitchTemplate, ON_ACTION, OFF_ACTION
 
 ON_OFF_DELAY = "on_off_delay"
 
@@ -75,7 +72,7 @@ async def _async_create_entities(hass, config):
         unique_id = entity_config.get(CONF_UNIQUE_ID)
 
         switches.append(
-            SwitchTemplate(
+            StateSwitch(
                 hass,
                 object_id,
                 entity_config,
@@ -96,10 +93,8 @@ async def async_setup_platform(
     async_add_entities(await _async_create_entities(hass, config))
 
 
-class SwitchTemplate(TemplateEntity, SwitchEntity, RestoreEntity):
+class StateSwitch(SwitchTemplate):
     """Representation of a Template switch."""
-
-    _attr_should_poll = False
 
     def __init__(
         self,
@@ -110,18 +105,8 @@ class SwitchTemplate(TemplateEntity, SwitchEntity, RestoreEntity):
     ):
         """Initialize the Template switch."""
         super().__init__(
-            hass, config=config, fallback_name=object_id, unique_id=unique_id
+            hass, object_id, config, unique_id
         )
-        self.entity_id = async_generate_entity_id(
-            ENTITY_ID_FORMAT, object_id, hass=hass
-        )
-        friendly_name = self._attr_name
-        self._template = config.get(CONF_VALUE_TEMPLATE)
-        self._on_script = Script(
-            hass, config[ON_ACTION], friendly_name, DOMAIN)
-        self._off_script = Script(
-            hass, config[OFF_ACTION], friendly_name, DOMAIN)
-        self._state: bool | None = False
 
         self._on_off_delay = config[ON_OFF_DELAY]
         self._reset_timer = None
@@ -146,28 +131,6 @@ class SwitchTemplate(TemplateEntity, SwitchEntity, RestoreEntity):
         
         self._state = False
 
-    async def async_added_to_hass(self) -> None:
-        """Register callbacks."""
-        if self._template is None:
-
-            # restore state after startup
-            await super().async_added_to_hass()
-            if state := await self.async_get_last_state():
-                self._state = state.state == STATE_ON
-
-            # no need to listen for events
-        else:
-            self.add_template_attribute(
-                "_state", self._template, None, self._update_state
-            )
-
-        await super().async_added_to_hass()
-
-    @property
-    def is_on(self) -> bool | None:
-        """Return true if device is on."""
-        return self._state
-
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Fire the on action."""
         self._reset_timer = Timer(self._on_off_delay/1000, self.reset)
@@ -190,8 +153,3 @@ class SwitchTemplate(TemplateEntity, SwitchEntity, RestoreEntity):
     def reset(self) -> None:
         self._state = self._old_state
         self.async_write_ha_state()
-
-    @property
-    def assumed_state(self) -> bool:
-        """State is assumed, if no template given."""
-        return self._template is None
