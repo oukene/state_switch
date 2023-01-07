@@ -114,8 +114,7 @@ class StateSwitch(SwitchTemplate):
 
     @callback
     def _update_state(self, result):
-        if self._reset_timer != None:
-            self._reset_timer.cancel()
+        self.timer_reset()
         super()._update_state(result)
         if isinstance(result, TemplateError):
             self._state = None
@@ -128,11 +127,12 @@ class StateSwitch(SwitchTemplate):
         if isinstance(result, str):
             self._state = result.lower() in ("true", STATE_ON)
             return
-        
+
         self._state = False
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Fire the on action."""
+        self.timer_reset()
         self._reset_timer = Timer(self._on_off_delay/1000, self.reset)
         self._reset_timer.start()
         await self.async_run_script(self._on_script, context=self._context)
@@ -142,6 +142,7 @@ class StateSwitch(SwitchTemplate):
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Fire the off action."""
+        self.timer_reset()
         self._reset_timer = Timer(self._on_off_delay/1000, self.reset)
         self._reset_timer.start()
         await self.async_run_script(self._off_script, context=self._context)
@@ -149,7 +150,12 @@ class StateSwitch(SwitchTemplate):
         self._state = False
         self.async_write_ha_state()
 
-
     def reset(self) -> None:
+        self.timer_reset()
         self._state = self._old_state
         self.async_write_ha_state()
+
+    def timer_reset(self):
+        if self._reset_timer != None:
+            self._reset_timer.cancel()
+            self._reset_timer = None
