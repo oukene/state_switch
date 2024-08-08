@@ -37,7 +37,7 @@ from homeassistant.components.template.template_entity import (
     rewrite_common_legacy_to_modern_conf,
 )
 
-from homeassistant.components.template.switch import SwitchTemplate, ON_ACTION, OFF_ACTION
+from homeassistant.components.template.switch import SwitchTemplate, CONF_TURN_ON, CONF_TURN_OFF
 
 ON_OFF_DELAY = "on_off_delay"
 
@@ -48,8 +48,8 @@ SWITCH_SCHEMA = vol.All(
     vol.Schema(
         {
             vol.Optional(CONF_VALUE_TEMPLATE): cv.template,
-            vol.Required(ON_ACTION): cv.SCRIPT_SCHEMA,
-            vol.Required(OFF_ACTION): cv.SCRIPT_SCHEMA,
+            vol.Required(CONF_TURN_ON): cv.SCRIPT_SCHEMA,
+            vol.Required(CONF_TURN_OFF): cv.SCRIPT_SCHEMA,
             vol.Required(ON_OFF_DELAY): int,
             vol.Optional(ATTR_FRIENDLY_NAME): cv.string,
             vol.Optional(ATTR_ENTITY_ID): cv.entity_ids,
