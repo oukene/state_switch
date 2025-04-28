@@ -19,6 +19,7 @@ from homeassistant.const import (
     CONF_VALUE_TEMPLATE,
     STATE_OFF,
     STATE_ON,
+    CONF_STATE,
 )
 from threading import Timer
 from homeassistant.core import HomeAssistant, callback
@@ -34,10 +35,14 @@ from homeassistant.components.template.const import DOMAIN
 from homeassistant.components.template.template_entity import (
     TEMPLATE_ENTITY_COMMON_SCHEMA_LEGACY,
     TemplateEntity,
-    rewrite_common_legacy_to_modern_conf,
 )
 
-from homeassistant.components.template.switch import SwitchTemplate, CONF_TURN_ON, CONF_TURN_OFF
+from homeassistant.components.template.switch import (
+    SwitchTemplate,
+    CONF_TURN_ON, CONF_TURN_OFF,
+    rewrite_options_to_modern_conf,
+    rewrite_common_legacy_to_modern_conf,
+)
 
 ON_OFF_DELAY = "on_off_delay"
 
@@ -47,7 +52,7 @@ SWITCH_SCHEMA = vol.All(
     cv.deprecated(ATTR_ENTITY_ID),
     vol.Schema(
         {
-            vol.Optional(CONF_VALUE_TEMPLATE): cv.template,
+            vol.Optional(CONF_STATE): cv.template,
             vol.Required(CONF_TURN_ON): cv.SCRIPT_SCHEMA,
             vol.Required(CONF_TURN_OFF): cv.SCRIPT_SCHEMA,
             vol.Required(ON_OFF_DELAY): int,
@@ -69,12 +74,12 @@ async def _async_create_entities(hass, config):
 
     for object_id, entity_config in config[CONF_SWITCHES].items():
         entity_config = rewrite_common_legacy_to_modern_conf(hass, entity_config)
+        entity_config = rewrite_options_to_modern_conf(entity_config)
         unique_id = entity_config.get(CONF_UNIQUE_ID)
 
         switches.append(
             StateSwitch(
                 hass,
-                object_id,
                 entity_config,
                 unique_id,
             )
@@ -99,13 +104,12 @@ class StateSwitch(SwitchTemplate):
     def __init__(
         self,
         hass,
-        object_id,
         config,
         unique_id,
     ):
         """Initialize the Template switch."""
         super().__init__(
-            hass, object_id, config, unique_id
+            hass, config, unique_id
         )
 
         self._on_off_delay = config[ON_OFF_DELAY]
@@ -135,7 +139,8 @@ class StateSwitch(SwitchTemplate):
         self.timer_reset()
         self._reset_timer = Timer(self._on_off_delay/1000, self.reset)
         self._reset_timer.start()
-        await self.async_run_script(self._on_script, context=self._context)
+        if on_script := self._action_scripts.get(CONF_TURN_ON):
+            await self.async_run_script(on_script, context=self._context)
         self._old_state = False
         self._state = True
         self.async_write_ha_state()
@@ -145,7 +150,8 @@ class StateSwitch(SwitchTemplate):
         self.timer_reset()
         self._reset_timer = Timer(self._on_off_delay/1000, self.reset)
         self._reset_timer.start()
-        await self.async_run_script(self._off_script, context=self._context)
+        if off_script := self._action_scripts.get(CONF_TURN_OFF):
+            await self.async_run_script(off_script, context=self._context)
         self._old_state = True
         self._state = False
         self.async_write_ha_state()
@@ -153,7 +159,7 @@ class StateSwitch(SwitchTemplate):
     def reset(self) -> None:
         self.timer_reset()
         self._state = self._old_state
-        self.async_write_ha_state()
+        self.schedule_update_ha_state()
 
     def timer_reset(self):
         if self._reset_timer != None:
