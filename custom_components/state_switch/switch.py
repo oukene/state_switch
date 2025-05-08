@@ -6,18 +6,12 @@ from typing import Any
 import voluptuous as vol
 import logging
 
-from homeassistant.components.switch import (
-    ENTITY_ID_FORMAT,
-    PLATFORM_SCHEMA,
-    SwitchEntity,
-)
 from homeassistant.const import (
     ATTR_ENTITY_ID,
     ATTR_FRIENDLY_NAME,
     CONF_SWITCHES,
     CONF_UNIQUE_ID,
     CONF_VALUE_TEMPLATE,
-    STATE_OFF,
     STATE_ON,
     CONF_STATE,
 )
@@ -25,21 +19,19 @@ from threading import Timer
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import TemplateError
 import homeassistant.helpers.config_validation as cv
-from homeassistant.helpers.entity import async_generate_entity_id
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.restore_state import RestoreEntity
-from homeassistant.helpers.script import Script
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
-from homeassistant.components.template.const import DOMAIN
 from homeassistant.components.template.template_entity import (
+    LEGACY_FIELDS as TEMPLATE_ENTITY_LEGACY_FIELDS,
     TEMPLATE_ENTITY_COMMON_SCHEMA_LEGACY,
-    TemplateEntity,
+    rewrite_common_legacy_to_modern_conf,
 )
 
 from homeassistant.components.template.switch import (
     SwitchTemplate,
     CONF_TURN_ON, CONF_TURN_OFF,
+    SWITCH_PLATFORM_SCHEMA,
     rewrite_options_to_modern_conf,
     rewrite_common_legacy_to_modern_conf,
 )
@@ -48,26 +40,32 @@ ON_OFF_DELAY = "on_off_delay"
 
 _LOGGER = logging.getLogger(__name__)
 
-SWITCH_SCHEMA = vol.All(
+LEGACY_FIELDS = TEMPLATE_ENTITY_LEGACY_FIELDS | {
+    CONF_VALUE_TEMPLATE: CONF_STATE,
+}
+
+DEFAULT_NAME = "Template Switch"
+
+LEGACY_SWITCH_SCHEMA = vol.All(
     cv.deprecated(ATTR_ENTITY_ID),
     vol.Schema(
         {
-            vol.Optional(CONF_STATE): cv.template,
+            vol.Optional(CONF_VALUE_TEMPLATE): cv.template,
             vol.Required(CONF_TURN_ON): cv.SCRIPT_SCHEMA,
             vol.Required(CONF_TURN_OFF): cv.SCRIPT_SCHEMA,
-            vol.Required(ON_OFF_DELAY): int,
             vol.Optional(ATTR_FRIENDLY_NAME): cv.string,
             vol.Optional(ATTR_ENTITY_ID): cv.entity_ids,
             vol.Optional(CONF_UNIQUE_ID): cv.string,
+            vol.Optional(ON_OFF_DELAY): int
         }
     ).extend(TEMPLATE_ENTITY_COMMON_SCHEMA_LEGACY.schema),
 )
 
-PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
-    {vol.Required(CONF_SWITCHES): cv.schema_with_slug_keys(SWITCH_SCHEMA)}
+PLATFORM_SCHEMA = SWITCH_PLATFORM_SCHEMA.extend(
+    {
+        vol.Required(CONF_SWITCHES): cv.schema_with_slug_keys(LEGACY_SWITCH_SCHEMA),
+    }
 )
-
-
 async def _async_create_entities(hass, config):
     """Create the Template switches."""
     switches = []
@@ -112,7 +110,7 @@ class StateSwitch(SwitchTemplate):
             hass, config, unique_id
         )
 
-        self._on_off_delay = config[ON_OFF_DELAY]
+        self._on_off_delay = config.get(ON_OFF_DELAY, 0)
         self._reset_timer = None
         self._old_state = False
 
